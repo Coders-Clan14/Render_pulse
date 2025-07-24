@@ -61,7 +61,24 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				// RenderPulse custom colors
+				pulse: {
+					primary: 'hsl(var(--pulse-primary))',
+					success: 'hsl(var(--pulse-success))',
+					warning: 'hsl(var(--pulse-warning))',
+					danger: 'hsl(var(--pulse-danger))'
 				}
+			},
+			backgroundImage: {
+				'gradient-primary': 'var(--gradient-primary)',
+				'gradient-success': 'var(--gradient-success)',
+				'gradient-card': 'var(--gradient-card)'
+			},
+			boxShadow: {
+				'pulse': 'var(--shadow-pulse)',
+				'success': 'var(--shadow-success)',
+				'card': 'var(--shadow-card)'
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
