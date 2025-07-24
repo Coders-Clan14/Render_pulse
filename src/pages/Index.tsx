@@ -21,7 +21,7 @@ const Index = () => {
         </div>
         
         <footer className="mt-16 text-center text-sm text-muted-foreground">
-          <p>Built with ❤️ for keeping free tier apps alive</p>
+          <p>Built by Prasham and Rishi (Stackwise)</p>
         </footer>
       </div>
     </div>
