@@ -14,7 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      ping_urls: {
+        Row: {
+          client_id: string
+          created_at: string
+          duration: number
+          expires_at: string
+          id: string
+          is_active: boolean
+          last_ping_at: string | null
+          last_ping_status: number | null
+          ping_count: number
+          url: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          duration: number
+          expires_at: string
+          id?: string
+          is_active?: boolean
+          last_ping_at?: string | null
+          last_ping_status?: number | null
+          ping_count?: number
+          url: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          duration?: number
+          expires_at?: string
+          id?: string
+          is_active?: boolean
+          last_ping_at?: string | null
+          last_ping_status?: number | null
+          ping_count?: number
+          url?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
