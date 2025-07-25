@@ -155,11 +155,10 @@ export function UrlItem({ url, onDelete }: UrlItemProps) {
               <ExternalLink className="h-4 w-4" />
             </Button>
             <Button
-              variant="danger"
+              variant="destructive"
               size="sm"
               onClick={handleDelete}
               disabled={isDeleting}
-              className="text-destructive-foreground"
             >
               <Trash2 className="h-4 w-4" />
             </Button>
