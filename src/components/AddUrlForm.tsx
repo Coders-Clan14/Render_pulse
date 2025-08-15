@@ -77,6 +77,8 @@ export function AddUrlForm({ onUrlAdded }: AddUrlFormProps) {
       });
 
       onUrlAdded();
+      window.location.reload(); 
+
     } catch (error) {
       toast({
         title: "Failed to Add URL",
@@ -87,6 +89,7 @@ export function AddUrlForm({ onUrlAdded }: AddUrlFormProps) {
       setIsLoading(false);
     }
   };
+  
 
   if (!canAddMore) {
     return (

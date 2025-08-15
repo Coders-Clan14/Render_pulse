@@ -9,6 +9,7 @@ const supabase = createClient(
 
 async function pingUrl(url: string): Promise<{ status: number; success: boolean }> {
   try {
+    console.log(`Attempting to ping: ${url}`)
     const response = await fetch(url, {
       method: 'HEAD',
       headers: {
@@ -17,6 +18,7 @@ async function pingUrl(url: string): Promise<{ status: number; success: boolean 
       signal: AbortSignal.timeout(30000), // 30 second timeout
     })
     
+    console.log(`Ping response for ${url}: ${response.status}`)
     return {
       status: response.status,
       success: response.ok
@@ -30,59 +32,6 @@ async function pingUrl(url: string): Promise<{ status: number; success: boolean 
   }
 }
 
-async function processActivePings() {
-  console.log('Processing active pings...')
-  
-  // Get all active URLs that haven't expired
-  const { data: activeUrls, error } = await supabase
-    .from('ping_urls')
-    .select('*')
-    .eq('is_active', true)
-    .gt('expires_at', new Date().toISOString())
-
-  if (error) {
-    console.error('Error fetching active URLs:', error)
-    return
-  }
-
-  console.log(`Found ${activeUrls.length} active URLs to ping`)
-
-  for (const urlRecord of activeUrls) {
-    console.log(`Pinging: ${urlRecord.url}`)
-    
-    const pingResult = await pingUrl(urlRecord.url)
-    
-    // Update the ping record
-    const { error: updateError } = await supabase
-      .from('ping_urls')
-      .update({
-        last_ping_at: new Date().toISOString(),
-        last_ping_status: pingResult.status,
-        ping_count: urlRecord.ping_count + 1
-      })
-      .eq('id', urlRecord.id)
-
-    if (updateError) {
-      console.error(`Error updating ping record for ${urlRecord.url}:`, updateError)
-    } else {
-      console.log(`Successfully pinged ${urlRecord.url} - Status: ${pingResult.status}`)
-    }
-  }
-
-  // Deactivate expired URLs
-  const { error: expiredError } = await supabase
-    .from('ping_urls')
-    .update({ is_active: false })
-    .eq('is_active', true)
-    .lt('expires_at', new Date().toISOString())
-
-  if (expiredError) {
-    console.error('Error deactivating expired URLs:', expiredError)
-  } else {
-    console.log('Deactivated expired URLs')
-  }
-}
-
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -90,17 +39,172 @@ serve(async (req) => {
   }
 
   try {
-    // This function can be called manually or via cron
-    await processActivePings()
-    
+    const url = new URL(req.url)
+    const method = req.method
+
+    // GET /ping-urls/:client_id - Get all URLs for a client
+    if (method === 'GET') {
+      const clientId = url.pathname.split('/').pop()
+      
+      if (!clientId) {
+        return new Response(
+          JSON.stringify({ error: 'Client ID is required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const { data, error } = await supabase
+        .from('ping_urls')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        return new Response(
+          JSON.stringify({ error: error.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      return new Response(
+        JSON.stringify(data),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // POST /ping-urls - Add new URL and perform immediate ping
+    if (method === 'POST') {
+      const body = await req.json()
+      const { client_id, url: pingUrl, duration } = body
+
+      // Validation
+      if (!client_id || !pingUrl || !duration) {
+        return new Response(
+          JSON.stringify({ error: 'client_id, url, and duration are required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Validate URL format
+      try {
+        new URL(pingUrl)
+        if (!pingUrl.startsWith('https://')) {
+          throw new Error('URL must use HTTPS protocol')
+        }
+      } catch {
+        return new Response(
+          JSON.stringify({ error: 'Invalid HTTPS URL format' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Validate duration
+      if (duration < 1 || duration > 720) {
+        return new Response(
+          JSON.stringify({ error: 'Duration must be between 1 and 720 minutes' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Check if client already has 3 active URLs
+      const { data: existingUrls, error: countError } = await supabase
+        .from('ping_urls')
+        .select('id')
+        .eq('client_id', client_id)
+        .eq('is_active', true)
+
+      if (countError) {
+        return new Response(
+          JSON.stringify({ error: countError.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      if (existingUrls.length >= 3) {
+        return new Response(
+          JSON.stringify({ error: 'Maximum of 3 active URLs allowed per user' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Perform immediate ping to test the URL
+      console.log(`Performing immediate ping for new URL: ${pingUrl}`)
+      const initialPing = await pingUrl(pingUrl)
+
+      // Insert new URL with initial ping data
+      const { data, error } = await supabase
+        .from('ping_urls')
+        .insert([{ 
+          client_id, 
+          url: pingUrl, 
+          duration,
+          last_ping_at: new Date().toISOString(),
+          last_ping_status: initialPing.status,
+          ping_count: 1
+        }])
+        .select()
+        .single()
+
+      if (error) {
+        return new Response(
+          JSON.stringify({ error: error.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      return new Response(
+        JSON.stringify(data),
+        { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // DELETE /ping-urls/:id - Mark URL as inactive
+    if (method === 'DELETE') {
+      const urlId = url.pathname.split('/').pop()
+      
+      if (!urlId) {
+        return new Response(
+          JSON.stringify({ error: 'URL ID is required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const { data, error } = await supabase
+        .from('ping_urls')
+        .update({ is_active: false })
+        .eq('id', urlId)
+        .select()
+        .single()
+
+      if (error) {
+        return new Response(
+          JSON.stringify({ error: error.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      if (!data) {
+        return new Response(
+          JSON.stringify({ error: 'URL not found' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      return new Response(
+        JSON.stringify({ message: 'URL deactivated successfully' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     return new Response(
-      JSON.stringify({ message: 'Ping service completed successfully' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: 'Method not allowed' }),
+      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
+
   } catch (error) {
-    console.error('Error in ping service:', error)
+    console.error('Error in ping-urls function:', error)
     return new Response(
-      JSON.stringify({ error: 'Ping service failed' }),
+      JSON.stringify({ error: 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }

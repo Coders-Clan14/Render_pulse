@@ -4,7 +4,7 @@ import { AddUrlForm } from '@/components/AddUrlForm';
 import { UrlList } from '@/components/UrlList';
 
 const Index = () => {
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const handleUrlAdded = () => {
     setRefreshTrigger(prev => prev + 1);
@@ -16,8 +16,8 @@ const Index = () => {
         <Header />
         
         <div className="space-y-8">
-          <AddUrlForm onUrlAdded={handleUrlAdded} />
-          <UrlList refreshTrigger={refreshTrigger} />
+         <AddUrlForm onUrlAdded={() => setRefreshTrigger(prev => prev + 1)} />
+<UrlList refreshTrigger={refreshTrigger} />
         </div>
         
         <footer className="mt-16 text-center text-sm text-muted-foreground">

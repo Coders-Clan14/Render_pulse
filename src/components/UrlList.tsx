@@ -4,9 +4,10 @@ import { UrlItem } from './UrlItem';
 import { getUserUrls } from '@/lib/api';
 import { useClientId } from '@/hooks/useClientId';
 import { useLocalUrls } from '@/hooks/useLocalUrls';
+import { useUrlPinger } from '@/hooks/useUrlPinger';
 import { useToast } from '@/hooks/use-toast';
 import { PingUrl } from '@/types/ping';
-import { Activity, RefreshCw } from 'lucide-react';
+import { Activity, RefreshCw, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface UrlListProps {
@@ -19,6 +20,9 @@ export function UrlList({ refreshTrigger }: UrlListProps) {
   const clientId = useClientId();
   const { urlIds, removeUrl } = useLocalUrls();
   const { toast } = useToast();
+
+  // Use the client-side pinger for backup pinging
+  useUrlPinger(urls);
 
   const fetchUrls = async () => {
     if (!clientId) return;
@@ -60,6 +64,9 @@ export function UrlList({ refreshTrigger }: UrlListProps) {
     setUrls(prev => prev.filter(url => url.id !== urlId));
   };
 
+  const activeUrls = urls.filter(url => url.is_active);
+  const isClientSidePinging = activeUrls.length > 0;
+
   if (urls.length === 0) {
     return (
       <Card className="gradient-card border border-border/50">
@@ -82,20 +89,36 @@ export function UrlList({ refreshTrigger }: UrlListProps) {
             <div className="p-2 rounded-lg bg-gradient-success">
               <Activity className="h-5 w-5 text-primary-foreground" />
             </div>
-            Active URLs ({urls.filter(url => url.is_active).length})
+            Active URLs ({activeUrls.length})
           </CardTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={fetchUrls}
-            disabled={isLoading}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-          </Button>
+          <div className="flex items-center gap-2">
+            {isClientSidePinging && (
+              <div className="flex items-center gap-1 text-xs text-accent">
+                <Zap className="h-3 w-3 animate-pulse" />
+                <span>Pinging</span>
+              </div>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={fetchUrls}
+              disabled={isLoading}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {isClientSidePinging && (
+          <div className="p-3 rounded-lg bg-accent/10 border border-accent/20">
+            <div className="flex items-center gap-2 text-sm text-accent">
+              <Zap className="h-4 w-4" />
+              <span>Client-side pinging active while this tab is open</span>
+            </div>
+          </div>
+        )}
         {urls.map((url) => (
           <UrlItem
             key={url.id}
